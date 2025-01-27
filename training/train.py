@@ -126,6 +126,14 @@ def main(args) -> None:
         cfg.launcher.experiment_log_dir = os.path.join(
             os.getcwd(), "sam2_logs", args.config
         )
+
+    import wandb
+
+    wandb.init(
+        project="pedestrian-crossing-distance",
+        config=OmegaConf.to_container(cfg, resolve=True),
+        reinit=True)
+
     print("###################### Train App Config ####################")
     print(OmegaConf.to_yaml(cfg))
     print("############################################################")
@@ -268,3 +276,5 @@ if __name__ == "__main__":
     args.use_cluster = bool(args.use_cluster) if args.use_cluster is not None else None
     register_omegaconf_resolvers()
     main(args)
+
+wandb.finish()

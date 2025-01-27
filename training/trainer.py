@@ -356,6 +356,11 @@ class Trainer:
         # DDP checkpoints are only saved on rank 0 (all workers are identical)
         if self.distributed_rank != 0:
             return
+        
+        if self.distributed_rank == 0:
+            artifact = wandb.Artifact(f"model_epoch_{epoch}", type="model")
+            artifact.add_file(checkpoint_paths[0])
+            wandb.log_artifact(artifact)
 
         for checkpoint_path in checkpoint_paths:
             self._save_checkpoint(checkpoint, checkpoint_path)
@@ -531,6 +536,7 @@ class Trainer:
             barrier()
             outs = self.train_epoch(dataloader)
             self.logger.log_dict(outs, self.epoch)  # Logged only on rank 0
+            wandb.log({"epoch": self.epoch, **outs})
 
             # log train to text file.
             if self.distributed_rank == 0:
@@ -539,6 +545,8 @@ class Trainer:
                     "a",
                 ) as f:
                     f.write(json.dumps(outs) + "\n")
+
+            wandb.log({"epoch": self.epoch, **outs})
 
             # Save checkpoint before validating
             self.save_checkpoint(self.epoch + 1)
@@ -569,9 +577,11 @@ class Trainer:
 
         dataloader = self.val_dataset.get_loader(epoch=int(self.epoch))
         outs = self.val_epoch(dataloader, phase=Phase.VAL)
+        wandb.log({"epoch": self.epoch, **outs})
         del dataloader
         gc.collect()
         self.logger.log_dict(outs, self.epoch)  # Logged only on rank 0
+        wandb.log({"epoch": self.epoch, **outs})
 
         if self.distributed_rank == 0:
             with g_pathmgr.open(
@@ -878,6 +888,12 @@ class Trainer:
                 raise FloatingPointError(error_msg)
             else:
                 return
+
+        wandb.log({
+            "batch_loss": loss.item(),
+            "epoch": self.epoch,
+            "step": self.steps[phase]
+        })
 
         self.scaler.scale(loss).backward()
         loss_mts[loss_key].update(loss.item(), batch_size)
