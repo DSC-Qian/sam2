@@ -128,10 +128,12 @@ def main(args) -> None:
             os.getcwd(), "sam2_logs", args.config
         )
     
+    # ================== WANDB INITIALIZATION ==================
     wandb.init(
-    project="pedestrian-crossing-distance",
-    config=OmegaConf.to_container(cfg, resolve=True),
-    reinit=True)
+        project="pedestrian-crossing-distance",
+        config=OmegaConf.to_container(cfg, resolve=True),
+        reinit=True)
+    # ======================================================
 
     print("###################### Train App Config ####################")
     print(OmegaConf.to_yaml(cfg))

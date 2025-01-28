@@ -361,12 +361,23 @@ class Trainer:
         for checkpoint_path in checkpoint_paths:
             self._save_checkpoint(checkpoint, checkpoint_path)
         
+        # ================== WANDB MODEL CHECKPOINTING ==================
         if self.distributed_rank == 0:
-            for checkpoint_path in checkpoint_paths:
-                self._save_checkpoint(checkpoint, checkpoint_path)
+            # Track model parameters and size
+            total_params = sum(p.numel() for p in self.model.parameters())
+            trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+            
+            wandb.log({
+                "model/total_parameters": total_params,
+                "model/trainable_parameters": trainable_params,
+                "model/checkpoint_size_mb": os.path.getsize(checkpoint_paths[0]) / (1024 * 1024)
+            })
+            
+            # Save model checkpoint as wandb artifact
             artifact = wandb.Artifact(f"model_epoch_{epoch}", type="model")
             artifact.add_file(checkpoint_paths[0])
             wandb.log_artifact(artifact)
+        # ============================================================
 
     def _save_checkpoint(self, checkpoint, checkpoint_path):
         """
@@ -699,6 +710,21 @@ class Trainer:
             out_dict.update(self._get_trainer_state(phase))
         self._reset_meters(curr_phases)
         logging.info(f"Meters: {out_dict}")
+
+        # ================== WANDB VALIDATION LOGGING ==================
+        if self.distributed_rank == 0:
+            val_metrics = {
+                f"val/{name}": meter.avg for name, meter in loss_mts.items()
+            }
+            
+            for key, meter in self._get_meters([phase]).items():
+                meter_output = meter.compute_synced()
+                for meter_subkey, meter_value in meter_output.items():
+                    val_metrics[f"val/{key}/{meter_subkey}"] = meter_value
+                
+            wandb.log(val_metrics)
+        # =========================================================== 
+
         return out_dict
 
     def _get_trainer_state(self, phase):
@@ -875,6 +901,8 @@ class Trainer:
                 self.model,
                 phase,
             )
+            
+            self._log_visualization_samples(batch, extra_losses, phase)
 
         assert len(loss_dict) == 1
         loss_key, loss = loss_dict.popitem()
@@ -896,12 +924,28 @@ class Trainer:
                 )
             extra_loss_mts[extra_loss_key].update(extra_loss.item(), batch_size)
         
+        # ================== WANDB TRAINING METRICS LOGGING ==================
         if self.distributed_rank == 0:
-            wandb.log({
-                "batch_loss": loss.item(),
-                "epoch": self.epoch,
-                "step": self.steps[phase]
-            })
+            metrics_dict = {
+            "batch_loss": loss.item(),
+            "epoch": self.epoch,
+            "step": self.steps[phase],
+            "learning_rate": self.optim.optimizer.param_groups[0]['lr']
+        }
+        
+            # Add extra loss components if they exist
+            for loss_key, loss_meter in extra_loss_mts.items():
+                metrics_dict[f"extra_losses/{loss_key}"] = loss_meter.val
+                
+            # Add memory usage metrics
+            if torch.cuda.is_available():
+                metrics_dict.update({
+                    "gpu_memory_allocated": torch.cuda.memory_allocated() / 1024**3,  # Convert to GB
+                    "gpu_memory_cached": torch.cuda.memory_reserved() / 1024**3
+                })
+                
+            wandb.log(metrics_dict)
+        # ================================================================
 
     def _log_meters_and_save_best_ckpts(self, phases: List[str]):
         logging.info("Synchronizing meters")
@@ -1053,6 +1097,30 @@ class Trainer:
                 self.logger.log(log_str, loss[k], step)
         return core_loss
 
+    def _log_visualization_samples(self, batch, outputs, phase):
+    """Log sample predictions to wandb for visual inspection"""
+    # ================== WANDB VISUALIZATION LOGGING ==================
+    if self.distributed_rank == 0 and self.steps[phase] % self.logging_conf.log_visual_frequency == 0:
+        try:
+            # Create visualization of predictions
+            fig = plt.figure(figsize=(12, 12))
+            for idx in range(min(4, len(batch.img_batch))):  # Up to 4 examples
+                plt.subplot(2, 2, idx + 1)
+                plt.imshow(batch.img_batch[idx].cpu().numpy().transpose(1, 2, 0))
+                if 'pred_masks' in outputs:
+                    mask = outputs['pred_masks'][idx].cpu().numpy()
+                    plt.imshow(mask, alpha=0.5, cmap='jet')
+                plt.axis('off')
+            
+            # Log to wandb
+            wandb.log({
+                f"{phase}/mask_predictions": wandb.Image(fig),
+                "global_step": self.steps[phase]
+            })
+            plt.close()
+        except Exception as e:
+            logging.warning(f"Failed to log visualizations: {e}")
+    # ==============================================================
 
 def print_model_summary(model: torch.nn.Module, log_dir: str = ""):
     """
