@@ -896,11 +896,11 @@ class Trainer:
             extra_loss_mts[extra_loss_key].update(extra_loss.item(), batch_size)
         
         if self.distributed_rank == 0:
-        wandb.log({
-            "batch_loss": loss.item(),
-            "epoch": self.epoch,
-            "step": self.steps[phase]
-        })
+            wandb.log({
+                "batch_loss": loss.item(),
+                "epoch": self.epoch,
+                "step": self.steps[phase]
+            })
 
     def _log_meters_and_save_best_ckpts(self, phases: List[str]):
         logging.info("Synchronizing meters")
