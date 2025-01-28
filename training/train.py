@@ -3,6 +3,7 @@
 
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
+import wandb
 
 import logging
 import os
@@ -126,8 +127,6 @@ def main(args) -> None:
         cfg.launcher.experiment_log_dir = os.path.join(
             os.getcwd(), "sam2_logs", args.config
         )
-
-    import wandb
 
     wandb.init(
         project="pedestrian-crossing-distance",
