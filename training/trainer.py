@@ -372,11 +372,6 @@ class Trainer:
                 "model/trainable_parameters": trainable_params,
                 "model/checkpoint_size_mb": os.path.getsize(checkpoint_paths[0]) / (1024 * 1024)
             })
-            
-            # Save model checkpoint as wandb artifact
-            artifact = wandb.Artifact(f"model_epoch_{epoch}", type="model")
-            artifact.add_file(checkpoint_paths[0])
-            wandb.log_artifact(artifact)
         # ============================================================
 
     def _save_checkpoint(self, checkpoint, checkpoint_path):
