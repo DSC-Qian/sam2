@@ -901,7 +901,7 @@ class Trainer:
                 self.model,
                 phase,
             )
-            
+
             self._log_visualization_samples(batch, extra_losses, phase)
 
         assert len(loss_dict) == 1
@@ -1098,29 +1098,29 @@ class Trainer:
         return core_loss
 
     def _log_visualization_samples(self, batch, outputs, phase):
-    """Log sample predictions to wandb for visual inspection"""
-    # ================== WANDB VISUALIZATION LOGGING ==================
-    if self.distributed_rank == 0 and self.steps[phase] % self.logging_conf.log_visual_frequency == 0:
-        try:
-            # Create visualization of predictions
-            fig = plt.figure(figsize=(12, 12))
-            for idx in range(min(4, len(batch.img_batch))):  # Up to 4 examples
-                plt.subplot(2, 2, idx + 1)
-                plt.imshow(batch.img_batch[idx].cpu().numpy().transpose(1, 2, 0))
-                if 'pred_masks' in outputs:
-                    mask = outputs['pred_masks'][idx].cpu().numpy()
-                    plt.imshow(mask, alpha=0.5, cmap='jet')
-                plt.axis('off')
-            
-            # Log to wandb
-            wandb.log({
-                f"{phase}/mask_predictions": wandb.Image(fig),
-                "global_step": self.steps[phase]
-            })
-            plt.close()
-        except Exception as e:
-            logging.warning(f"Failed to log visualizations: {e}")
-    # ==============================================================
+        """Log sample predictions to wandb for visual inspection"""
+        # ================== WANDB VISUALIZATION LOGGING ==================
+        if self.distributed_rank == 0 and self.steps[phase] % self.logging_conf.log_visual_frequency == 0:
+            try:
+                # Create visualization of predictions
+                fig = plt.figure(figsize=(12, 12))
+                for idx in range(min(4, len(batch.img_batch))):  # Up to 4 examples
+                    plt.subplot(2, 2, idx + 1)
+                    plt.imshow(batch.img_batch[idx].cpu().numpy().transpose(1, 2, 0))
+                    if 'pred_masks' in outputs:
+                        mask = outputs['pred_masks'][idx].cpu().numpy()
+                        plt.imshow(mask, alpha=0.5, cmap='jet')
+                    plt.axis('off')
+                
+                # Log to wandb
+                wandb.log({
+                    f"{phase}/mask_predictions": wandb.Image(fig),
+                    "global_step": self.steps[phase]
+                })
+                plt.close()
+            except Exception as e:
+                logging.warning(f"Failed to log visualizations: {e}")
+        # ==============================================================
 
 def print_model_summary(model: torch.nn.Module, log_dir: str = ""):
     """
