@@ -122,16 +122,16 @@ def add_pythonpath_to_sys_path():
 
 
 def main(args) -> None:
-    wandb.init(
-        project="pedestrian-crossing-distance",
-        config=OmegaConf.to_container(cfg, resolve=True),
-        reinit=True)
-
     cfg = compose(config_name=args.config)
     if cfg.launcher.experiment_log_dir is None:
         cfg.launcher.experiment_log_dir = os.path.join(
             os.getcwd(), "sam2_logs", args.config
         )
+    
+    wandb.init(
+    project="pedestrian-crossing-distance",
+    config=OmegaConf.to_container(cfg, resolve=True),
+    reinit=True)
 
     print("###################### Train App Config ####################")
     print(OmegaConf.to_yaml(cfg))
